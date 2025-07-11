@@ -1,0 +1,39 @@
+name: Salesforce CI/CD with sf CLI
+
+on: 
+    push:
+        branches:
+            - main
+
+jobs:
+    salesforce-ci:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+
+            - name: Install Salesforce CLI
+              run: |
+                npm install @salesforce/cli --global
+                sf --version
+            
+            - name: Authenticate Dev Hub
+              run: |
+                echo "${{ secrets.SF_AUTH_URL }}" > authfile.txt
+                sf org login sfdx-url --sfdx-url-file authfile.txt --alias DevHub
+
+            - name: Create Scratch Org
+              run: sf org create scratch --definition-file config/project-scratch-def.json --alias ScratchOrg --duration-days 1 --set-default
+
+            - name: Push Source to Scratch Org
+              run: sf project deploy start --target-org ScratchOrg
+
+            - name: Run Apex Tests
+              run: sf apex run test --target-org ScratchOrg --test-level RunLocalTests
+            
+            - name: Deploy to Production
+              run: sf project deploy start --target-org DevHub
+
+            - name: Delete Scratch Org
+              run: sf org delete scratch --target-org ScratchOrg --no-prompt

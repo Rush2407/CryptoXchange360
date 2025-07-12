@@ -86,7 +86,11 @@ jobs:
               sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod --set-default
             
           - name: Deploy Metadata to Production
-            run: sf project deploy start --target-org Prod
+            run: |
+              sf project deploy start --target-org Prod \
+                --ignore-conflicts \
+                --ignore-warning \
+                --single-package
 
 
 

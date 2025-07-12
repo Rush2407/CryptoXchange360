@@ -10,3 +10,20 @@ package.xml
 
 # LWC Jest
 **/__tests__/**
+
+#Ignore all managed packages
+**/installedPackages/*
+
+#ignore destructive standard metadata
+**/standardValuesSets/*
+**/standardObjects/*
+
+#Ignore profiles (use permission sets instead if possible)
+**/profiles/*
+
+#Ignore flow versions except active ones
+**/flows/*-1.flow-meta.xml
+
+#Ignore aura bundles  if not needed
+**/aura/*
+

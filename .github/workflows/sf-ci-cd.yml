@@ -1,43 +1,48 @@
-name: Salesforce Advanced CI/CD Pipeline
+name: Salesforce Multi-Branch CI/CD Pipeline
 
 on: 
-    push:
-        branches:
-            - main
+  push:
+      branches:
+          - main
+          - dev
+          - feature/**
+
+  pull_request:
+      branches:
+        - dev
+        - main
+env:
+  TEST_COVERAGE_THRESHOLD: 75
 
 jobs:
-    salesforce-ci:
+    validate-branch:
+        name: Validate Branch in Scratch Org
         runs-on: ubuntu-latest
-
-        env:
-          TEST_COVERAGE_THRESHOLD: 75
+        if: github.ref  !=  'refs/heads/main'
 
         steps:
             - name: Checkout repository
               uses: actions/checkout@v3
 
-            - name: Install Salesforce CLI
+            - name: Install Salesforce CLI & PMD
               run: |
                 npm install @salesforce/cli --global
-                sf --version
+                curl -LJO https://github.com/pmd/pmd/releases/download/pmd_releases%2F6.55.0/pmd-bin-6.55.0.zip
+                unzip pmd-bin-6.55.0.zip -d pmd
+                export PATH=$PATH:$(pwd)/pmd/pmd-bin-6.55.0/bin
             
-            - name: Authenticate Dev Hub
+            - name: Authenticate Salesforce Org
               run: |
                 echo "${{ secrets.SF_AUTH_URL }}" > authfile.txt
-                sf org login sfdx-url --sfdx-url-file authfile.txt --alias DevHub --set-default-dev-hub
+                sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod --set-default
 
             - name: Create Scratch Org
-              run: sf org create scratch --definition-file config/project-scratch-def.json --alias ScratchOrg --duration-days 1 --set-default
+              run:  |
+                sf org create scratch --definition-file config/project-scratch-def.json --alias ScratchOrg --set-default --duration-days 1
 
             - name: Push Source to Scratch Org
               run: sf project deploy start --target-org ScratchOrg
 
-            - name: Run PMD Analysis
-              run: |
-                wget https://github.com/pmd/pmd/releases/download/pmd_releases%2F6.55.0/pmd-bin-6.55.0.zip
-                unzip pmd-bin-6.55.0.zip
-                pmd-bin-6.55.0/bin/run.sh pmd -d force-app -R apex-ruleset.xml -f text
-          
             - name: Run Apex Tests
               run:  |
                 sf apex run test --target-org ScratchOrg --code-coverage --result-format json --output-dir test-results
@@ -49,41 +54,36 @@ jobs:
                 else
                   echo  "Code coverage meets threshold."
                 fi
-            
-            - name: Deploy to Production
-              run: sf project deploy start --target-org DevHub
+
+            - name: Run PMD Analysis
+              run: |
+                pmd/bin/run.sh pmd -d force-app/main/default/classes -R apex-apexunit -f text
 
             - name: Delete Scratch Org
               run: sf org delete scratch --target-org ScratchOrg --no-prompt
+            
+    deploy-prod:
+      name: Deploy to Production
+      runs-on:  ubuntu-latest
+      if: github.ref == 'refs/heads/main'
 
-            - name: Send Success Email
-              if: success()
-              uses: dawidd6/action-send-mail@v3
-              with: 
-                server_address: smtp.gmail.com
-                server_port: 465
-                username: ${{ secrets.EMAIL_USERNAME  }}
-                password: ${{ secrets.EMAIL_PASSWORD  }}
-                subject: "  CryptoXchange360 CI/CD Pipeline Success!"
-                body: |
-                  Good news!
-                    The GitHub Actoins pipeline for CryptoXchange360 completed successfully and was deployed to production.
-                to: rushikeshshelar3140@gmail.com
-                from: ci-cd-bot@example.com
-                secure: true
+      steps:
+          - name: Checkout repository
+            uses: actions/checkout@v3
 
-            - name: Send Failure Email
-              if: failure()
-              uses: dawidd6/action-send-mail@v3
-              with: 
-                  server_address: smtp.gmail.com
-                  server_port: 465
-                  username: ${{ secrets.EMAIL_USERNAME  }}
-                  password: ${{ secrets.EMAIL_PASSWORD  }}
-                  subject: "  CryptoXchange360 CI/CD Pipeline Failed!"
-                  body: |
-                    Attention!
-                      The GitHub Actoins pipeline for CryptoXchange360 has failed. Check the GitHub Actions logs for details.
-                  to: rushikeshshelar3140@gmail.com
-                  from: ci-cd-bot@example.com
-                  secure: true
+          - name: Install Salesforce CLI 
+            run: |
+              npm install @salesforce/cli --global
+              sf --version
+            
+          - name: Authenticate Production Org
+            run: |
+              echo "${{ secrets.SF_AUTH_URL }}" > authfile.txt
+              sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod
+            
+          - name: Deploy Metadata to Production
+            run: sf project deploy start --target-org Prod
+
+
+
+              

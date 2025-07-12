@@ -2,6 +2,6 @@
 public class DummyTest {
     @isTest
     static void testSomething() {
-        System.assertEquals(2,2);
+        System.assertEquals(1,1,'Added dummy test class');
     }
 }

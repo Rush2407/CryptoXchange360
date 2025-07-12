@@ -35,10 +35,10 @@ jobs:
                 fi
                 export PATH=$PATH:$(pwd)/pmd/pmd-bin-6.55.0/bin
             
-            - name: Authenticate Salesforce Org
+            - name: Authenticate Dev Hub
               run: |
-                echo "${{ secrets.SF_AUTH_URL }}" > authfile.txt
-                sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod --set-default
+                echo "${{ secrets.SF_AUTH_URL }}" > devhub_authfile.txt
+                sf org login sfdx-url --sfdx-url-file devhub_authfile.txt --alias DevHub --set-default-dev-hub
 
             - name: Create Scratch Org
               run:  |
@@ -79,14 +79,18 @@ jobs:
             run: |
               npm install @salesforce/cli --global
               sf --version
-            
+          
           - name: Authenticate Production Org
             run: |
               echo "${{ secrets.SF_AUTH_URL }}" > authfile.txt
-              sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod
+              sf org login sfdx-url --sfdx-url-file authfile.txt --alias Prod --set-default
             
           - name: Deploy Metadata to Production
-            run: sf project deploy start --target-org Prod
+            run: |
+              sf project deploy start --target-org Prod \
+                --ignore-conflicts \
+                --ignore-warning \
+                --single-package
 
 
 
